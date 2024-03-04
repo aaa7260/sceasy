@@ -54,19 +54,22 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
     transfer_layers %in% c("data", "counts", "scale.data")
   ]
   transfer_layers <- transfer_layers[transfer_layers != main_layer]
-
+  
   if (compareVersion(as.character(obj@version), "3.0.0") < 0) {
     obj <- Seurat::UpdateSeuratObject(object = obj)
   }
-
+  
   X <- Seurat::GetAssayData(object = obj, assay = assay, slot = main_layer)
-
+  
   obs <- .regularise_df(obj@meta.data, drop_single_values = drop_single_values)
-
+  
+  if (compareVersion('5.0.0',as.character(obj@version)) < 0) {
+    var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
+  }
   var = Seurat::GetAssay(obj, assay = assay)@meta.data
   rownames(var) = rownames(Seurat::GetAssay(obj, assay = assay))
   var <- .regularise_df(var, drop_single_values = drop_single_values)
-
+  
   obsm <- NULL
   reductions <- names(obj@reductions)
   if (length(reductions) > 0) {
@@ -77,15 +80,15 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
     )
     names(obsm) <- paste0("X_", tolower(names(obj@reductions)))
   }
-
+  
   layers <- list()
   for (layer in transfer_layers) {
     mat <- Seurat::GetAssayData(object = obj, assay = assay, slot = layer)
     if (all(dim(mat) == dim(X))) layers[[layer]] <- Matrix::t(mat)
   }
-
+  
   anndata <- reticulate::import("anndata", convert = FALSE)
-
+  
   adata <- anndata$AnnData(
     X = Matrix::t(X),
     obs = obs,
@@ -93,11 +96,11 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
     obsm = obsm,
     layers = layers
   )
-
+  
   if (!is.null(outFile)) {
     adata$write(outFile, compression = "gzip")
   }
-
+  
   adata
 }
 
@@ -128,13 +131,13 @@ sce2anndata <- function(obj, outFile = NULL, main_layer = "counts", transfer_lay
   main_layer <- match.arg(main_layer, assay_names)
   transfer_layers <- transfer_layers[transfer_layers %in% assay_names]
   transfer_layers <- transfer_layers[transfer_layers != main_layer]
-
+  
   X <- SummarizedExperiment::assay(obj, main_layer)
-
+  
   obs <- .regularise_df(as.data.frame(SummarizedExperiment::colData(obj)), drop_single_values = drop_single_values)
-
+  
   var <- .regularise_df(as.data.frame(SummarizedExperiment::rowData(obj)), drop_single_values = drop_single_values)
-
+  
   obsm <- NULL
   reductions <- SingleCellExperiment::reducedDimNames(obj)
   if (length(reductions) > 0) {
@@ -151,15 +154,15 @@ sce2anndata <- function(obj, outFile = NULL, main_layer = "counts", transfer_lay
       "X_", tolower(SingleCellExperiment::reducedDimNames(obj))
     )
   }
-
+  
   layers <- list()
   for (layer in transfer_layers) {
     mat <- SummarizedExperiment::assay(obj, layer)
     if (all(dim(mat) == dim(X))) layers[[layer]] <- Matrix::t(mat)
   }
-
+  
   anndata <- reticulate::import("anndata", convert = FALSE)
-
+  
   adata <- anndata$AnnData(
     X = Matrix::t(X),
     obs = obs,
@@ -167,11 +170,11 @@ sce2anndata <- function(obj, outFile = NULL, main_layer = "counts", transfer_lay
     obsm = obsm,
     layers = layers
   )
-
+  
   if (!is.null(outFile)) {
     adata$write(outFile, compression = "gzip")
   }
-
+  
   adata
 }
 
@@ -192,29 +195,29 @@ sce2anndata <- function(obj, outFile = NULL, main_layer = "counts", transfer_lay
 loom2anndata <- function(inFile, outFile = NULL, main_layer = c("spliced", "unspliced"),
                          obs_names = "CellID", var_names = "Gene") {
   main_layer <- match.arg(main_layer)
-
+  
   anndata <- reticulate::import("anndata", convert = FALSE)
-
+  
   if (compareVersion(as.character(anndata[["__version__"]]), "0.6.20") < 0) {
     message(paste(
       "Warning: anndata <0.6.20 detected.",
       "Upgrade to handle multi-dimensional embeddings."
     ))
   }
-
+  
   adata <- anndata$read_loom(
     inFile,
     sparse = TRUE, cleanup = TRUE, X_name = main_layer,
     obs_names = obs_names, var_names = var_names
   )
-
+  
   anndata$AnnData$obs_names_make_unique(adata)
   anndata$AnnData$var_names_make_unique(adata)
-
+  
   if (!is.null(outFile)) {
     adata$write(outFile, compression = "gzip")
   }
-
+  
   adata
 }
 
@@ -236,7 +239,7 @@ seurat2sce <- function(obj, outFile = NULL, main_layer = NULL, assay = "RNA", ..
   if (!is.null(outFile)) {
     saveRDS(sce, outFile)
   }
-
+  
   sce
 }
 
@@ -256,7 +259,7 @@ sce2loom <- function(obj, outFile, main_layer = NULL, drop_single_values = TRUE,
     stop("This function requires the 'LoomExperiment' package.")
   }
   scle <- LoomExperiment::SingleCellLoomExperiment(obj)
-
+  
   if (!is.null(outFile)) {
     LoomExperiment::export(
       scle, outFile,
@@ -264,7 +267,7 @@ sce2loom <- function(obj, outFile, main_layer = NULL, drop_single_values = TRUE,
       colnames_attr = "obs_names", rownames_attr = "var_names"
     )
   }
-
+  
   scle
 }
 
@@ -286,11 +289,11 @@ loom2sce <- function(inFile, outFile = NULL, main_layer = NULL, main_layer_name 
   }
   scle <- LoomExperiment::import(inFile)
   sce <- as(scle, "SingleCellExperiment")
-
+  
   if (!is.null(outFile)) {
     saveRDS(sce, outFile)
   }
-
+  
   sce
 }
 
@@ -360,10 +363,10 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
   }
   main_layer <- match.arg(main_layer, c("counts", "data", "scale.data"))
   inFile <- path.expand(inFile)
-
+  
   anndata <- reticulate::import("anndata", convert = FALSE)
   sp <- reticulate::import("scipy.sparse", convert = FALSE)
-
+  
   if (use_seurat) {
     if (lzf) {
       tmpFile <- paste0(tools::file_path_sans_ext(inFile), ".decompressed.h5ad")
@@ -382,10 +385,10 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
     }
   } else {
     ad <- anndata$read_h5ad(inFile)
-
+    
     obs_df <- .obs2metadata(ad$obs)
     var_df <- .var2feature_metadata(ad$var)
-
+    
     if (reticulate::py_to_r(sp$issparse(ad$X))) {
       X <- Matrix::t(reticulate::py_to_r(sp$csc_matrix(ad$X)))
     } else {
@@ -393,7 +396,7 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
     }
     colnames(X) <- rownames(obs_df)
     rownames(X) <- rownames(var_df)
-
+    
     if (!is.null(reticulate::py_to_r(ad$raw))) {
       raw_var_df <- .var2feature_metadata(ad$raw$var)
       raw_X <- Matrix::t(reticulate::py_to_r(sp$csc_matrix(ad$raw$X)))
@@ -403,7 +406,7 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
       raw_var_df <- NULL
       raw_X <- NULL
     }
-
+    
     if (main_layer == "scale.data" && !is.null(raw_X)) {
       assays <- list(Seurat::CreateAssayObject(data = raw_X))
       assays[[1]] <- Seurat::SetAssayData(assays[[1]], slot = "scale.data", new.data = X)
@@ -426,18 +429,18 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
     }
     names(assays) <- assay
     Seurat::Key(assays[[assay]]) <- paste0(tolower(assay), "_")
-
+    
     if (main_layer == "scale.data" && !is.null(raw_X)) {
       assays[[assay]]@meta.features <- raw_var_df
     } else {
       assays[[assay]]@meta.features <- var_df
     }
-
+    
     project_name <- sub("\\.h5ad$", "", basename(inFile))
     srt <- new("Seurat", assays = assays, project.name = project_name, version = packageVersion("Seurat"))
     Seurat::DefaultAssay(srt) <- assay
     Seurat::Idents(srt) <- project_name
-
+    
     srt@meta.data <- obs_df
     embed_names <- unlist(reticulate::py_to_r(ad$obsm_keys()))
     if (length(embed_names) > 0) {
@@ -446,16 +449,16 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
       for (name in embed_names) {
         rownames(embeddings[[name]]) <- colnames(assays[[assay]])
       }
-
+      
       dim.reducs <- vector(mode = "list", length = length(embeddings))
       for (i in seq(length(embeddings))) {
         name <- embed_names[i]
         embed <- embeddings[[name]]
         key <- switch(name,
-          sub("_(.*)", "\\L\\1", sub("^X_", "", toupper(name)), perl = T),
-          "X_pca" = "PC",
-          "X_tsne" = "tSNE",
-          "X_umap" = "UMAP"
+                      sub("_(.*)", "\\L\\1", sub("^X_", "", toupper(name)), perl = T),
+                      "X_pca" = "PC",
+                      "X_tsne" = "tSNE",
+                      "X_umap" = "UMAP"
         )
         colnames(embed) <- paste0(key, "_", seq(ncol(embed)))
         dim.reducs[[i]] <- Seurat::CreateDimReducObject(
@@ -467,17 +470,17 @@ anndata2seurat <- function(inFile, outFile = NULL, main_layer = "counts", assay 
         )
       }
       names(dim.reducs) <- sub("X_", "", embed_names)
-
+      
       for (name in names(dim.reducs)) {
         srt[[name]] <- dim.reducs[[name]]
       }
     }
   }
-
+  
   srt@misc <- .uns2misc(ad, target_uns_keys = target_uns_keys)
-
+  
   if (!is.null(outFile)) saveRDS(object = srt, file = outFile)
-
+  
   srt
 }
 
@@ -500,12 +503,12 @@ anndata2cds <- function(inFile, outFile = NULL, main_layer = "X", pcaName = "X_p
   builtins <- reticulate::import_builtins(convert = FALSE)
   anndata <- reticulate::import("anndata", convert = FALSE)
   sp <- reticulate::import("scipy.sparse", convert = FALSE)
-
+  
   ad <- anndata$read_h5ad(inFile)
   obs_df <- .obs2metadata(ad$obs)
-
+  
   if (is.null(main_layer)) main_layer <- "X"
-
+  
   if ((main_layer == "raw") && (!is.null(reticulate::py_to_r(ad$raw)))) {
     var_df <- .var2feature_metadata(ad$raw$var)
     var_df$gene_short_name <- rownames(var_df)
@@ -513,7 +516,7 @@ anndata2cds <- function(inFile, outFile = NULL, main_layer = "X", pcaName = "X_p
     var_df <- .var2feature_metadata(ad$var)
     var_df$gene_short_name <- rownames(var_df)
   }
-
+  
   if (main_layer == "raw") {
     count_x <- tryCatch(
       {
@@ -539,10 +542,10 @@ anndata2cds <- function(inFile, outFile = NULL, main_layer = "X", pcaName = "X_p
   X <- Matrix::t(reticulate::py_to_r(sp$csc_matrix(count_x)))
   colnames(X) <- rownames(obs_df)
   rownames(X) <- rownames(var_df)
-
+  
   suppressPackageStartupMessages(library(SingleCellExperiment))
   cds1 <- monocle3::new_cell_data_set(expression_data = X, cell_metadata = obs_df, gene_metadata = var_df)
-
+  
   embed_names <- reticulate::py_to_r(builtins$list(ad$obsm$keys()))
   if ((!is.null(pcaName) && pcaName %in% embed_names) || (!is.null(umapName) && umapName %in% embed_names)) {
     embeds <- SimpleList()
@@ -556,8 +559,8 @@ anndata2cds <- function(inFile, outFile = NULL, main_layer = "X", pcaName = "X_p
     }
     SingleCellExperiment::reducedDims(cds1) <- embeds
   }
-
+  
   if (!is.null(outFile)) saveRDS(object = cds1, file = outFile)
-
+  
   cds1
 }
