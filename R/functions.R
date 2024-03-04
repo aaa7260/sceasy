@@ -63,11 +63,11 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
   
   obs <- .regularise_df(obj@meta.data, drop_single_values = drop_single_values)
   
-  if (compareVersion('5.0.0',as.character(obj@version)) > 0) {
-    var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
-  }
+  #if (compareVersion('5.0.0',as.character(obj@version)) > 0) {var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)}
   var = Seurat::GetAssay(obj, assay = assay)@meta.data
   rownames(var) = rownames(Seurat::GetAssay(obj, assay = assay))
+
+
   var <- .regularise_df(var, drop_single_values = drop_single_values)
   
   obsm <- NULL
