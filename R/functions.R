@@ -59,18 +59,35 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
     obj <- Seurat::UpdateSeuratObject(object = obj)
   }
   
-  X <- Seurat::GetAssayData(object = obj, assay = assay, slot = main_layer)
+  #X <- Seurat::GetAssayData(object = obj, assay = assay, slot = main_layer)
+  # 增加版本判断，如果是 V5 及以上版本，使用 layer 参数
+ if (compareVersion(as.character(obj@version), "5.0.0") >= 0) {
+   X <- Seurat::GetAssayData(object = obj, assay = assay, layer = main_layer)
+ } else {
+   X <- Seurat::GetAssayData(object = obj, assay = assay, slot = main_layer)
+ }
   
   obs <- .regularise_df(obj@meta.data, drop_single_values = drop_single_values)
   
-  if (compareVersion('5.0.0',as.character(obj@version)) > 0) {
-    var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
+  #if (compareVersion('5.0.0',as.character(obj@version)) > 0) {
+  #  var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
+ # }
+  #else {
+  #var = Seurat::GetAssay(obj, assay = assay)@meta.data
+  #rownames(var) = rownames(Seurat::GetAssay(obj, assay = assay))
+  #var <- .regularise_df(var, drop_single_values = drop_single_values)
+  #}
+
+  if (compareVersion(as.character(obj@version), '5.0.0') >= 0) {
+  # Seurat V5 推荐方式
+  var_data <- obj[[assay]]@meta.data
+  if (nrow(var_data) == 0) {
+    var_data <- data.frame(row.names = rownames(obj[[assay]]))
   }
-  else {
-  var = Seurat::GetAssay(obj, assay = assay)@meta.data
-  rownames(var) = rownames(Seurat::GetAssay(obj, assay = assay))
-  var <- .regularise_df(var, drop_single_values = drop_single_values)
-  }
+  var <- .regularise_df(var_data, drop_single_values = drop_single_values)
+} else {
+  var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
+}
   obsm <- NULL
   reductions <- names(obj@reductions)
   if (length(reductions) > 0) {
@@ -83,10 +100,19 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
   }
   
   layers <- list()
+  #for (layer in transfer_layers) {
+  #  mat <- Seurat::GetAssayData(object = obj, assay = assay, slot = layer)
+  #  if (all(dim(mat) == dim(X))) layers[[layer]] <- Matrix::t(mat)
+  #}
   for (layer in transfer_layers) {
+  if (compareVersion(as.character(obj@version), "5.0.0") >= 0) {
+    mat <- Seurat::GetAssayData(object = obj, assay = assay, layer = layer)
+  } else {
     mat <- Seurat::GetAssayData(object = obj, assay = assay, slot = layer)
-    if (all(dim(mat) == dim(X))) layers[[layer]] <- Matrix::t(mat)
   }
+  if (all(dim(mat) == dim(X))) layers[[layer]] <- Matrix::t(mat)
+ }
+
   
   anndata <- reticulate::import("anndata", convert = FALSE)
   
