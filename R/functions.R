@@ -85,7 +85,7 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
 } else {
   var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
 }
-’‘’
+if(F){
 if (compareVersion(as.character(obj@version), '5.0.0') >= 0) {
   # --- 核心修复开始 ---
   # 1. 使用多种备选方案确保拿取到原始基因名
@@ -118,7 +118,7 @@ if (compareVersion(as.character(obj@version), '5.0.0') >= 0) {
   }
   var <- .regularise_df(var_data, drop_single_values = drop_single_values)
 }
-‘’‘
+}
   
   obsm <- NULL
   reductions <- names(obj@reductions)
