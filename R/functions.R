@@ -80,14 +80,46 @@ seurat2anndata <- function(obj, outFile = NULL, assay = "RNA", main_layer = "dat
 
   if (compareVersion(as.character(obj@version), '5.0.0') >= 0) {
   # Seurat V5 推荐方式
-  var_data <- obj[[assay]]@meta.data
-  if (nrow(var_data) == 0) {
-    var_data <- data.frame(row.names = rownames(obj[[assay]]))
-  }
+  var_data <- data.frame(row.names = rownames(X))
   var <- .regularise_df(var_data, drop_single_values = drop_single_values)
 } else {
   var <- .regularise_df(Seurat::GetAssay(obj, assay = assay)@meta.features, drop_single_values = drop_single_values)
 }
+’‘’
+if (compareVersion(as.character(obj@version), '5.0.0') >= 0) {
+  # --- 核心修复开始 ---
+  # 1. 使用多种备选方案确保拿取到原始基因名
+  all_genes <- rownames(obj[[assay]])
+  
+  if (is.null(all_genes) || length(all_genes) == 0) {
+    # 备选方案：尝试从 Layer 层面抓取（V5 特有结构）
+    layer_names <- SeuratObject::Layers(obj[[assay]])
+    all_genes <- rownames(SeuratObject::LayerData(obj[[assay]], layer = layer_names[1]))
+  }
+  
+  # 2. 获取元数据
+  var_data <- obj[[assay]]@meta.data
+  
+  # 3. 强制对齐行名：这是解决 MEBOCOST 同步问题的关键
+  if (nrow(var_data) == 0 || nrow(var_data) != length(all_genes)) {
+    var_data <- data.frame(row.names = all_genes)
+  } else {
+    rownames(var_data) <- all_genes
+  }
+  # --- 核心修复结束 ---
+
+  var <- .regularise_df(var_data, drop_single_values = drop_single_values)
+} else {
+  # Seurat V4 逻辑保持相对简单
+  all_genes <- rownames(obj[[assay]])
+  var_data <- obj[[assay]]@meta.features
+  if (nrow(var_data) == 0) {
+    var_data <- data.frame(row.names = all_genes)
+  }
+  var <- .regularise_df(var_data, drop_single_values = drop_single_values)
+}
+‘’‘
+  
   obsm <- NULL
   reductions <- names(obj@reductions)
   if (length(reductions) > 0) {
